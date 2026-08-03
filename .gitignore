@@ -1,0 +1,12 @@
+# ── Raw FLDAS monthly archive (~32 GB, 277 files, each >100 MB — download separately) ──
+*.nc
+
+# ── Reprojected duplicate outputs (large, reproducible by re-running the notebook) ──
+FLDAS_Outputs/NDVI_Aligned_GeoTIFFs/
+
+# ── Jupyter / Python / editor housekeeping ──────────────────────────────
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.claude/
+.vscode/

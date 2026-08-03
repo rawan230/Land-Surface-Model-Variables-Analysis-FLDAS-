@@ -1,0 +1,23 @@
+# Land Surface Model Variables Analysis (FLDAS) — dependencies
+# Install with: pip install -r requirements.txt
+
+numpy
+pandas
+matplotlib
+geopandas
+tqdm
+rasterio
+pyogrio
+xarray
+netCDF4
+requests
+jupyter
+nbconvert
+
+# ── Optional: GPU acceleration (NVIDIA CUDA 12.x on Windows/Linux) ──────────
+# The pipeline auto-detects CuPy and falls back to NumPy (CPU) if these are
+# not installed or no compatible GPU is present. Uncomment to enable GPU:
+# cupy-cuda12x
+# nvidia-cuda-runtime-cu12
+# nvidia-cuda-nvrtc-cu12
+# nvidia-cuda-nvcc-cu12

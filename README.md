@@ -35,7 +35,7 @@ to that study:
 
 | # | Metric | Notes |
 |---|---|---|
-| 1–6 | Climatology, anomaly, Mann-Kendall trend (monthly) | Same treatment as wind/precip/RH for every new variable |
+| 1–6 | Climatology, anomaly, Mann-Kendall trend (monthly) + significance (p-value) | Same treatment as wind/precip/RH for every new variable |
 | 7 | Fire coincidence | Are fire-affected pixel-months drier / windier / lower-humidity / lower-soil-moisture? |
 | 8 | NDVI-grid reprojection | `rasterio.warp.reproject`, bilinear (FLDAS 0.1° → NDVI grid 0.01° is upsampling) |
 | 9 | Land cover 22-class fractions | Per-pixel fractional cover of each ESA CCI LCCS base class, area-averaged onto the NDVI grid |
@@ -51,7 +51,10 @@ to that study:
   the same raster convention as the project's other layers.
 - GPU-accelerated where it matters: CuPy runs a row-tiled (memory-bounded)
   Mann-Kendall trend test on the monthly arrays, with auto-fallback to CPU
-  (NumPy) if no CUDA device is found.
+  (NumPy) if no CUDA device is found. The trend test also computes a
+  two-sided normal-approximation p-value (erf-based, same formula as Step
+  2/NDVI and Step 3/LST), so trend significance is reported consistently
+  across all three steps.
 
 ### How to run
 
@@ -96,7 +99,7 @@ script's docstring for exact setup).
 | Net LW radiation | −84.7 W/m² |
 | Soil moisture (0–10cm) | 26.5 kg/m² |
 
-**Mann-Kendall trend (τ, monthly resolution, computed in 1.6s GPU-tiled):**
+**Mann-Kendall trend (τ, monthly resolution, computed in ~21s GPU-tiled):**
 
 | Variable | Mean τ | Median τ |
 |---|---:|---:|
@@ -106,6 +109,26 @@ script's docstring for exact setup).
 | Air temperature | −0.007 | −0.014 |
 | Net LW radiation | +0.082 | +0.068 |
 | Soil moisture | +0.090 | +0.072 |
+
+**Trend significance** (two-sided normal-approximation p-value on the same S-statistic,
+identical formula to Step 2/NDVI and Step 3/LST's Mann-Kendall test — diagnostic only,
+doesn't change the τ/anomaly values above):
+
+| Variable | Significant increasing (p<0.05) | Significant decreasing (p<0.05) | Total significant | % of valid pixels |
+|---|---:|---:|---:|---:|
+| Wind | 1,159 | 2,569 | 3,728 / 28,813 | 12.9% |
+| Precipitation | 2,662 | 92 | 2,754 / 28,813 | 9.6% |
+| Relative humidity | 13,298 | 115 | 13,413 / 28,813 | 46.6% |
+| Air temperature | 634 | 2 | 636 / 28,813 | 2.2% |
+| Net LW radiation | 10,197 | 0 | 10,197 / 28,759 | 35.5% |
+| Soil moisture | 11,587 | 28 | 11,615 / 28,759 | 40.4% |
+
+Relative humidity, net LW radiation, and soil moisture show the most spatially extensive
+significant trends (35–47% of valid pixels), almost entirely increasing. Air temperature
+has the weakest and least significant trend (2.2% of pixels), consistent with its
+near-zero mean τ. `FLDAS_trend_summary.csv` also carries `p_mean` and
+`n_significant_increasing_p05`/`n_significant_decreasing_p05`/`n_valid_pixels` per
+variable for the full per-variable breakdown.
 
 **Fire coincidence** (541,545 Step 1 fire points, 100% inside the FLDAS grid bounds) — conditions at fire pixel-months vs. the grid-wide average:
 
@@ -138,7 +161,7 @@ Top 5 classes by national mean fraction (India-masked):
 | File | Contents |
 |---|---|
 | `FLDAS_monthly_statistics_NDVI_aligned.csv` | Monthly wind/precip/RH/air temp/specific humidity/net LW radiation/soil moisture means + anomalies + fire counts; join key `(year, month)` |
-| `FLDAS_trend_summary.csv` | Mann-Kendall τ summary (monthly resolution), 6 variables |
+| `FLDAS_trend_summary.csv` | Mann-Kendall τ summary (monthly resolution), 6 variables — tau_mean/tau_std/n_increasing_pixels/n_decreasing_pixels plus p_mean and significant-pixel counts (p<0.05) |
 | Per-pixel GeoTIFFs (native FLDAS grid) | Climatology, anomaly, τ, fire count — 6 climatic variables |
 | `NDVI_Aligned_GeoTIFFs/` | Same monthly features reprojected (bilinear) onto the NDVI/LST/fire/LULC grid (not tracked in git — regenerate by re-running) |
 | `LandCover_22Class_Fractions_2020.tif` | 22-band GeoTIFF, one band per ESA CCI base class, fractional cover per NDVI pixel (~40 MB) |

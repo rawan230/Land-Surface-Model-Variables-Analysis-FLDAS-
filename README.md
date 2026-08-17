@@ -2,13 +2,19 @@
 
 **Notebook:** [`Land Surface Model Variables Analysis.ipynb`](Land%20Surface%20Model%20Variables%20Analysis.ipynb)
 
-## Step 6: Climatic Variables + Land Cover — Biswas et al.-Aligned Feature Set — India (2000–2022)
+## Step 4: Climatic Variables + Land Cover — Biswas et al.-Aligned Feature Set — India (2000–2022)
+
+> **Renumbered 2026-08-17**: this was "Step 6" before — moved to Step 4 since it's
+> an independent preprocessing step that always ran before assembly/training,
+> regardless of its old number (the previous numbering was a historical artifact
+> of when this notebook was added to the project, not a reflection of execution
+> order). No content or code changed, only the label.
 
 **Extends:** FLDAS_NOAH01_C_GL_M.001 (Noah Land Surface Model, MERRA-2 + CHIRPS
 forced), monthly, 0.1°, plus the ESA CCI/C3S LCCS land-cover archive.
 **Data:** `FLDAS_NOAH01_C_GL_M.A<YYYYMM>.001.nc`, one file per month
 **Study period:** 1 Nov 2000 – 15 Dec 2022 (266 months, complete series) —
-matches Step 1 (fire), Step 2 (NDVI), Step 3 (LST) and Step 4 (integration)
+matches Step 1 (fire), Step 2 (NDVI), Step 3 (LST) and Step 5 (integration)
 exactly, so every variable here is directly joinable on `(year, month)`
 against those other steps' outputs.
 

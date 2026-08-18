@@ -14,28 +14,56 @@
 forced), monthly, 0.1°, plus the ESA CCI/C3S LCCS land-cover archive.
 **Data:** `FLDAS_NOAH01_C_GL_M.A<YYYYMM>.001.nc`, one file per month
 **Study period:** 1 Nov 2000 – 15 Dec 2022 (266 months, complete series) —
-matches Step 1 (fire), Step 2 (NDVI), Step 3 (LST) and Step 5 (integration)
+matches Step 1 (fire), Step 2 (NDVI), Step 3 (LST) and Step 6 (integration,
+renumbered 2026-08-19 from Step 5 to make room for Step 5 Terrain & Accessibility Analysis)
 exactly, so every variable here is directly joinable on `(year, month)`
 against those other steps' outputs.
 
 ### Biswas et al. variable coverage
 
-This notebook targets the full baseline variable set (NDVI and LST Day/Night
-are covered elsewhere, not repeated here) so results are directly comparable
-to that study:
+> **Corrected 2026-08-18**: this table previously claimed Biswas et al. use an
+> "11-variable" set with burned area as the sole gap. That was wrong on two counts,
+> verified by direct extraction from the user's own copy of the paper: (1) their
+> actual MaxEnt model (Table 3) uses **15 predictor variables**, not 11; (2) fire
+> points, land cover, and burned area — previously counted here as three of the
+> "11" — are **not** Table 3 predictors at all. Fire points are the response
+> variable (what's being predicted, in both their study and this project); land
+> cover is a forest-masking *input* used to filter fire points, not a model
+> predictor; burned area is a Table 2 dataset used elsewhere in their paper, never
+> a Table 3 predictor. Split below into what's actually comparable.
 
-| # | Biswas et al. variable | Source | Status |
+**Actual Table 3 MaxEnt predictors this notebook targets** (NDVI and LST Day/Night
+are covered elsewhere, not repeated here):
+
+| # | Biswas et al. variable | Importance % / Contribution % | Source | Status |
+|---|---|---:|---|---|
+| 1 | Air Temperature (K) | 13.1 / 3.8 | `Tair_f_tavg` | Covered |
+| 2 | Specific Humidity (kg/kg) | 13.0 / 15.0 | `Qair_f_tavg` | Covered (previously internal-only, used for RH) |
+| 3 | Soil Moisture (kg/m²) | 3.8 / 0.9 | `SoilMoi*_tavg` (4 depth layers) | Covered — surface (0-10cm) as the headline layer, full 0-200cm profile as a bonus |
+| 4 | Precipitation (mm/h) | 3.6 / 1.7 | `Rainf_f_tavg` × 3600 | Covered (new unit; previously mm/month only, kept alongside) |
+| 5 | Near-surface Wind Speed (m/s) | 2.4 / 4.3 | `Wind_f_tavg` | Covered |
+| 6 | Net LW Radiation (W/m²) | 1.8 / 0.6 | `Lwnet_tavg` | Covered |
+| 7 | **Distance to Roads** | 5.7 / 2.6 | OpenStreetMap (2022) | **Not yet computed anywhere in this pipeline** |
+| 8 | **Distance to Railways** | 4.6 / 4.9 | OpenStreetMap (2022) | **Not yet computed anywhere in this pipeline** |
+| 9 | **Distance to Waterways** | 0.5 / 1.7 | OpenStreetMap (2022) | **Not yet computed anywhere in this pipeline** |
+| 10 | **Slope (°)** | 5.6 / 16.7 | DEM-derived | **Not yet computed anywhere in this pipeline** |
+| 11 | **Aspect (°)** | 1.7 / 3.8 | DEM-derived | **Not yet computed anywhere in this pipeline** |
+| 12 | **Elevation (m)** | 2.4 / 2.0 | DEM-derived | **Not yet computed anywhere in this pipeline** |
+
+Plus NDVI (Step 2, 22.3/28.4%) and LST day/night (Step 3, 9.6/4.5% and 10.1/8.9%) —
+**9 of the real 15 predictors covered, 6 genuinely missing**, all six being the
+distance-to-infrastructure and topographic variables above (combined 10.8% + 9.7% =
+20.5% of Biswas et al.'s total model contribution).
+
+**Supporting datasets this notebook also carries, not Table 3 predictors in either
+study**:
+
+| Dataset | Source | Status | Role in Biswas et al. |
 |---|---|---|---|
-| 1 | Air Temperature (K) | `Tair_f_tavg` | New in this notebook |
-| 2 | Wind Speed (m/s) | `Wind_f_tavg` | Carried over |
-| 3 | Specific Humidity (kg/kg) | `Qair_f_tavg` | New (previously internal-only, used for RH) |
-| 4 | Precipitation (mm/h) | `Rainf_f_tavg` × 3600 | New unit (previously mm/month only, kept alongside) |
-| 5 | Soil Moisture (kg/m²) | `SoilMoi*_tavg` (4 depth layers) | New — surface (0-10cm) as the headline layer, full 0-200cm profile as a bonus |
-| 6 | Net LW Radiation (W/m²) | `Lwnet_tavg` | New |
-| 7 | Fire Points (CSV) | Step 1 archive | Carried over (fire coincidence check) |
-| 8 | Land Cover (22 classes) | ESA CCI/C3S LCCS, reclassified to the 22 base LCCS parent codes | New |
-| 9 | Burned Area | — | **Not available in this project** — no MODIS MCD64A1/FireCCI/GABAM archive present; fire points remain the only fire-occurrence signal |
-| — | Relative Humidity (%) | Derived (Clausius-Clapeyron) | Bonus, not in Biswas et al. but kept since it's a byproduct of #1/#3 |
+| Fire Points (CSV) | Step 1 archive | Carried over (fire coincidence check) | Response variable — what the model predicts, not an input |
+| Land Cover (22 classes) | ESA CCI/C3S LCCS, reclassified to the 22 base LCCS parent codes | Covered | Used to build the forest-only fire-point mask (same role in this project's Step 1), not a Table 3 predictor |
+| Burned Area | — | **Not available in this project** — no MODIS MCD64A1/FireCCI/GABAM archive present | A Table 2 dataset in their paper, but never appears in their Table 3 predictor list — was never actually a predictor gap |
+| Relative Humidity (%) | Derived (Clausius-Clapeyron) | Bonus | Not in Biswas et al. at all, kept since it's a byproduct of #1/#2 above |
 
 ### What this step delivers
 
@@ -174,13 +202,19 @@ Top 5 classes by national mean fraction (India-masked):
 | `LandCover_22Class_NationalMeanFraction.png` | Which classes actually dominate India's land surface |
 | `FLDAS_Summary_Analysis.png`, `FLDAS_Summary_Analysis_Additional.png`, `FLDAS_Fire_Coincidence.png` | Summary plots |
 
-**Biswas et al. variable coverage after this notebook:** 10 of 11 variables
-are now produced and aligned (NDVI + LST Day/Night from other steps; air
-temperature, wind speed, specific humidity, precipitation, soil moisture,
-net LW radiation, fire points, and land cover from this notebook). **Burned
-area is the one gap** — no MODIS MCD64A1/FireCCI/GABAM archive exists in
-this project; only fire hotspot points are available as a fire-occurrence
-signal.
+**Biswas et al. variable coverage after this notebook (corrected 2026-08-18):** 9 of
+their real 15 Table 3 predictors are now produced and aligned — NDVI + LST Day/Night
+from other steps; air temperature, specific humidity, wind speed, precipitation, soil
+moisture, and net LW radiation from this notebook. **Six predictors are still
+genuinely missing**, none of them burned area: distance to roads / railways /
+waterways (OSM, 10.8% combined contribution in their model) and slope / aspect /
+elevation (DEM-derived, 9.7% combined contribution) — see the corrected table above.
+Land cover and fire points are also produced by this notebook, but as supporting
+datasets (forest-masking input and response variable respectively), not as Table 3
+predictors in either study. Burned area was never actually a Table 3 predictor gap —
+it's a Table 2 dataset in their paper used elsewhere, not one of the 15 — though this
+project still has no MODIS MCD64A1/FireCCI/GABAM archive if it's wanted for other
+purposes.
 
 ## Citation
 

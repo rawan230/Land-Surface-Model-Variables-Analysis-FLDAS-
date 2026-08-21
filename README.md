@@ -74,6 +74,10 @@ study**:
 | 8 | NDVI-grid reprojection | `rasterio.warp.reproject`, bilinear (FLDAS 0.1° → NDVI grid 0.01° is upsampling) |
 | 9 | Land cover 22-class fractions | Per-pixel fractional cover of each ESA CCI LCCS base class, area-averaged onto the NDVI grid |
 
+Note: bilinear interpolation does not recover genuine sub-grid detail; FLDAS-derived
+features carry ~11km effective spatial resolution despite being stored on the 1km
+analysis grid, and should not be read as independent 1km observations.
+
 ### Design notes
 
 - FLDAS is natively monthly (one file = one month already), unlike MODIS
@@ -146,23 +150,37 @@ script's docstring for exact setup).
 
 **Trend significance** (two-sided normal-approximation p-value on the same S-statistic,
 identical formula to Step 2/NDVI and Step 3/LST's Mann-Kendall test — diagnostic only,
-doesn't change the τ/anomaly values above):
+doesn't change the τ/anomaly values above), reported both as the **raw p<0.05 count
+(uncorrected)** and after **Benjamini-Hochberg FDR correction** (Wilks 2006, "On 'Field
+Significance' and the False Discovery Rate," *J. Appl. Meteor. Climatol.* 45:1181) — the
+same multiple-comparisons fix already applied to Step 3 (LST)'s Mann-Kendall trend maps.
+FDR is applied per-variable across that variable's full set of valid (n_valid≥10)
+per-pixel p-values (`statsmodels.stats.multitest.multipletests(method='fdr_bh',
+alpha=0.05)`); the **FDR-corrected columns are what the pipeline treats as real** —
+the raw columns are kept only so the shrinkage from correction is visible and honestly
+reported, not silently swapped out:
 
-| Variable | Significant increasing (p<0.05) | Significant decreasing (p<0.05) | Total significant | % of valid pixels |
-|---|---:|---:|---:|---:|
-| Wind | 1,159 | 2,569 | 3,728 / 28,813 | 12.9% |
-| Precipitation | 2,662 | 92 | 2,754 / 28,813 | 9.6% |
-| Relative humidity | 13,298 | 115 | 13,413 / 28,813 | 46.6% |
-| Air temperature | 634 | 2 | 636 / 28,813 | 2.2% |
-| Net LW radiation | 10,197 | 0 | 10,197 / 28,759 | 35.5% |
-| Soil moisture | 11,587 | 28 | 11,615 / 28,759 | 40.4% |
+| Variable | Raw p<0.05 total | FDR-corrected total | FDR increasing | FDR decreasing | % of valid pixels (FDR) |
+|---|---:|---:|---:|---:|---:|
+| Wind | 3,728 / 28,813 | 1,015 | 385 | 630 | 3.5% |
+| Precipitation | 2,754 / 28,813 | 1,840 | 1,830 | 10 | 6.4% |
+| Relative humidity | 13,413 / 28,813 | 10,818 | 10,738 | 80 | 37.5% |
+| Air temperature | 636 / 28,813 | 0 | 0 | 0 | 0.0% |
+| Net LW radiation | 10,197 / 28,759 | 7,204 | 7,204 | 0 | 25.0% |
+| Soil moisture | 11,615 / 28,759 | 6,926 | 6,908 | 18 | 24.1% |
 
-Relative humidity, net LW radiation, and soil moisture show the most spatially extensive
-significant trends (35–47% of valid pixels), almost entirely increasing. Air temperature
-has the weakest and least significant trend (2.2% of pixels), consistent with its
-near-zero mean τ. `FLDAS_trend_summary.csv` also carries `p_mean` and
-`n_significant_increasing_p05`/`n_significant_decreasing_p05`/`n_valid_pixels` per
-variable for the full per-variable breakdown.
+Relative humidity, net LW radiation, and soil moisture remain the most spatially extensive
+significant trends after correction (24–38% of valid pixels), almost entirely increasing.
+Air temperature's already-weak raw signal (2.2% of pixels, 636 raw-significant) does not
+survive FDR correction at all — **zero pixels remain significant**, meaning its apparent
+raw trend was consistent with multiple-testing noise rather than a real spatial pattern.
+The other five variables retain 27–81% of their raw-significant pixels after correction
+(wind lowest at 27%, relative humidity highest at 81%) — a real but much gentler
+shrinkage than Step 3 (LST)'s far larger pixel count saw, since FDR's correction strength
+scales with how many tests are run: FLDAS's ~28,800 valid pixels per variable produce
+far less p-value inflation to begin with than LST's millions. `FLDAS_trend_summary.csv` carries `p_mean` plus both
+`n_significant_*_pixels_raw_p05` and `n_significant_*_pixels_fdr` (increasing/decreasing/
+total) and `n_valid_pixels` per variable for the full per-variable breakdown.
 
 **Fire coincidence** (541,545 Step 1 fire points, 100% inside the FLDAS grid bounds) — conditions at fire pixel-months vs. the grid-wide average:
 
@@ -195,8 +213,8 @@ Top 5 classes by national mean fraction (India-masked):
 | File | Contents |
 |---|---|
 | `FLDAS_monthly_statistics_NDVI_aligned.csv` | Monthly wind/precip/RH/air temp/specific humidity/net LW radiation/soil moisture means + anomalies + fire counts; join key `(year, month)` |
-| `FLDAS_trend_summary.csv` | Mann-Kendall τ summary (monthly resolution), 6 variables — tau_mean/tau_std/n_increasing_pixels/n_decreasing_pixels plus p_mean and significant-pixel counts (p<0.05) |
-| Per-pixel GeoTIFFs (native FLDAS grid) | Climatology, anomaly, τ, fire count — 6 climatic variables |
+| `FLDAS_trend_summary.csv` | Mann-Kendall τ summary (monthly resolution), 6 variables — tau_mean/tau_std/n_increasing_pixels/n_decreasing_pixels plus p_mean and BOTH raw p<0.05 (uncorrected) and Benjamini-Hochberg FDR-corrected (Wilks 2006) significant-pixel counts |
+| Per-pixel GeoTIFFs (native FLDAS grid) | Climatology, anomaly, τ, FDR-corrected q-value and significance mask, fire count — 6 climatic variables |
 | `NDVI_Aligned_GeoTIFFs/` | Same monthly features reprojected (bilinear) onto the NDVI/LST/fire/LULC grid (not tracked in git — regenerate by re-running) |
 | `LandCover_22Class_Fractions_2020.tif` | 22-band GeoTIFF, one band per ESA CCI base class, fractional cover per NDVI pixel (~40 MB) |
 | `LandCover_22Class_NationalMeanFraction.png` | Which classes actually dominate India's land surface |

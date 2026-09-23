@@ -19,6 +19,37 @@ renumbered 2026-08-19 from Step 5 to make room for Step 5 Terrain & Accessibilit
 exactly, so every variable here is directly joinable on `(year, month)`
 against those other steps' outputs.
 
+### Why this step, and how
+
+These five climatic variables — air temperature, specific humidity, precipitation,
+near-surface wind speed, and net longwave radiation — aren't an arbitrary FLDAS
+subset: they're standard fuel-dryness/fire-weather proxies in the wildfire literature
+(e.g. the Canadian Fire Weather Index's temperature/humidity/wind/precipitation inputs,
+Van Wagner 1987; the U.S. National Fire Danger Rating System's similar predictor set),
+and they're exactly Biswas et al.'s own Table 3 climatic-group predictors, so using
+them keeps this project's feature set directly comparable to the reference study rather
+than substituting a different climatic proxy set. Soil moisture (a Biswas et al.
+biophysical-group predictor) is a direct fuel-moisture measurement rather than a proxy
+for one, so it's carried alongside the five for the same reason. Land cover is bundled
+into this same notebook — rather than its own step — because it comes from the same
+underlying NASA/ESA raster-processing toolchain (crop-to-India, reproject-to-NDVI-grid)
+already built here, and because both this step's climatic layers and land cover need to
+land on the shared NDVI grid before Step 6 can join anything; splitting land cover into
+a ninth step would duplicate that reprojection machinery for no methodological benefit.
+FDR correction matters here because Mann-Kendall trend significance is tested
+independently at ~29,000 pixels per variable — at an uncorrected p<0.05 threshold,
+roughly 1,450 of those tests are expected to appear "significant" by chance alone even
+if no real trend exists anywhere, which is exactly what happened to air temperature (636
+raw-significant pixels collapsing to 0 after correction); Benjamini-Hochberg FDR
+(Wilks 2006) is the standard climate-science fix for this multiple-testing problem, and
+applying it here keeps trend claims honest at the same rigor as Steps 2 (NDVI) and 3
+(LST). The output — `FLDAS_monthly_statistics_NDVI_aligned.csv` keyed on `(year, month)`
+plus the per-variable anomaly/trend/significance GeoTIFFs and the 22-band land-cover
+fraction stack, all pre-reprojected onto the NDVI grid — is what lets Step 6 merge this
+step's contribution straight into the integrated pixel table with a plain
+`merge(..., on=['year','month'])` and a handful of `rasterio` reads, no reprojection
+logic of its own.
+
 ### Biswas et al. variable coverage
 
 > **Corrected 2026-08-18**: this table previously claimed Biswas et al. use an
@@ -43,17 +74,23 @@ are covered elsewhere, not repeated here):
 | 4 | Precipitation (mm/h) | 3.6 / 1.7 | `Rainf_f_tavg` × 3600 | Covered (new unit; previously mm/month only, kept alongside) |
 | 5 | Near-surface Wind Speed (m/s) | 2.4 / 4.3 | `Wind_f_tavg` | Covered |
 | 6 | Net LW Radiation (W/m²) | 1.8 / 0.6 | `Lwnet_tavg` | Covered |
-| 7 | **Distance to Roads** | 5.7 / 2.6 | OpenStreetMap (2022) | **Not yet computed anywhere in this pipeline** |
-| 8 | **Distance to Railways** | 4.6 / 4.9 | OpenStreetMap (2022) | **Not yet computed anywhere in this pipeline** |
-| 9 | **Distance to Waterways** | 0.5 / 1.7 | OpenStreetMap (2022) | **Not yet computed anywhere in this pipeline** |
-| 10 | **Slope (°)** | 5.6 / 16.7 | DEM-derived | **Not yet computed anywhere in this pipeline** |
-| 11 | **Aspect (°)** | 1.7 / 3.8 | DEM-derived | **Not yet computed anywhere in this pipeline** |
-| 12 | **Elevation (m)** | 2.4 / 2.0 | DEM-derived | **Not yet computed anywhere in this pipeline** |
+| 7 | **Distance to Roads** | 5.7 / 2.6 | OpenStreetMap (2022) | Closed by Step 5b (`Distance_Roads_Railways_Waterways_Analysis/`), not this step |
+| 8 | **Distance to Railways** | 4.6 / 4.9 | OpenStreetMap (2022) | Closed by Step 5b, not this step |
+| 9 | **Distance to Waterways** | 0.5 / 1.7 | OpenStreetMap (2022) | Closed by Step 5b, not this step |
+| 10 | **Slope (°)** | 5.6 / 16.7 | DEM-derived | Closed by Step 5a (`Terrain_Elevation_Slope_Aspect_Analysis/`), not this step |
+| 11 | **Aspect (°)** | 1.7 / 3.8 | DEM-derived | Closed by Step 5a, not this step |
+| 12 | **Elevation (m)** | 2.4 / 2.0 | DEM-derived | Closed by Step 5a, not this step |
 
 Plus NDVI (Step 2, 22.3/28.4%) and LST day/night (Step 3, 9.6/4.5% and 10.1/8.9%) —
-**9 of the real 15 predictors covered, 6 genuinely missing**, all six being the
-distance-to-infrastructure and topographic variables above (combined 10.8% + 9.7% =
-20.5% of Biswas et al.'s total model contribution).
+**this step covers 9 of the real 15 predictors** (the six others were genuinely
+missing when this table was first written 2026-08-18, but are **no longer a
+pipeline-wide gap**: Step 5a/5b closed all six — the distance-to-infrastructure
+and topographic variables above, combined 10.8% + 9.7% = 20.5% of Biswas et al.'s
+total model contribution — on 2026-08-18/19, wired into Step 6/7 on 2026-08-20.
+The pipeline as a whole is at **15/15 predictor parity**; this notebook's own
+scope remains the 9 climatic/biophysical/land-cover variables above (the table's
+"Status" column now points to Step 5a/5b for the other six rather than calling
+them missing).
 
 **Supporting datasets this notebook also carries, not Table 3 predictors in either
 study**:
@@ -64,6 +101,35 @@ study**:
 | Land Cover (22 classes) | ESA CCI/C3S LCCS, reclassified to the 22 base LCCS parent codes | Covered | Used to build the forest-only fire-point mask (same role in this project's Step 1), not a Table 3 predictor |
 | Burned Area | — | **Not available in this project** — no MODIS MCD64A1/FireCCI/GABAM archive present | A Table 2 dataset in their paper, but never appears in their Table 3 predictor list — was never actually a predictor gap |
 | Relative Humidity (%) | Derived (Clausius-Clapeyron) | Bonus | Not in Biswas et al. at all, kept since it's a byproduct of #1/#2 above — kept as its own full-treatment feature, not superseded by specific humidity now also getting the same treatment |
+
+### Comparison against Biswas et al. (2025)
+
+Same underlying source, three genuine methodological additions beyond what their
+Table 3 pipeline does with it:
+
+- **Resolution.** Both studies pull the same FLDAS NOAH01_C_GL_M monthly product at its
+  native 0.1° (~11 km) grid. Biswas et al. rasterize it (and every other predictor) to a
+  uniform 0.25° for MaxEnt input. This project instead reprojects (bilinear) onto the
+  shared ~0.01° (~1 km) NDVI analysis grid used pipeline-wide — a working resolution
+  roughly 2.5× finer than their 0.25° grid, though the FLDAS layers' own ~11 km
+  *effective* resolution is unchanged by that reprojection (stated explicitly above, not
+  a claim of genuine 1 km sub-grid detail).
+- **Temporal-trend and significance testing.** Biswas et al.'s Table 3 predictors are
+  static per-pixel monthly-mean values with no anomaly, trend, or significance treatment
+  described for any of the six variables this step covers. This step instead computes a
+  2001–2020 climatology baseline, per-month anomalies, GPU-tiled Mann-Kendall τ trend,
+  and Benjamini-Hochberg FDR-corrected trend significance for all seven variables it
+  carries (six Table 3 predictors plus bonus RH) — a rigor level their raw-value MaxEnt
+  input structurally cannot provide, since a static mean has no notion of "is this trend
+  real or multiple-testing noise."
+- **Land-cover granularity.** Biswas et al. use ESA CCI/C3S land cover only once, as a
+  binary forest/non-forest mask to filter fire points (their Table 2, not a Table 3
+  predictor). This step instead reclassifies the same source archive into the full
+  22-class Level-1 LCCS legend (verified 2026-08-09 as the official legend) and computes
+  per-pixel fractional cover of every class, joinable on `(year, month)` — a
+  vegetation-composition feature set with no equivalent in their paper at all (see
+  `Step7_LandCover_Feature_Selection_Rationale.md` for how Step 6/7 actually use it and
+  what it contributes to the trained model).
 
 ### What this step delivers
 
@@ -230,13 +296,17 @@ Top 5 classes by national mean fraction (India-masked):
 | `FLDAS_Summary_Analysis.png`, `FLDAS_Summary_Analysis_Additional.png`, `FLDAS_Fire_Coincidence.png` | Summary plots |
 
 **Biswas et al. variable coverage after this notebook (corrected 2026-08-18):** 9 of
-their real 15 Table 3 predictors are now produced and aligned — NDVI + LST Day/Night
-from other steps; air temperature, specific humidity, wind speed, precipitation, soil
-moisture, and net LW radiation from this notebook. **Six predictors are still
-genuinely missing**, none of them burned area: distance to roads / railways /
-waterways (OSM, 10.8% combined contribution in their model) and slope / aspect /
-elevation (DEM-derived, 9.7% combined contribution) — see the corrected table above.
-Land cover and fire points are also produced by this notebook, but as supporting
+their real 15 Table 3 predictors are produced and aligned by this notebook — NDVI + LST
+Day/Night from other steps; air temperature, specific humidity, wind speed,
+precipitation, soil moisture, and net LW radiation from this notebook. At the time this
+table was first corrected (2026-08-18), the remaining six — distance to roads /
+railways / waterways (OSM, 10.8% combined contribution in their model) and slope /
+aspect / elevation (DEM-derived, 9.7% combined contribution) — were genuinely missing
+pipeline-wide. **That gap is now closed**: Step 5a (`Terrain_Elevation_Slope_Aspect_Analysis/`)
+and Step 5b (`Distance_Roads_Railways_Waterways_Analysis/`) computed all six
+2026-08-18/19, and Step 6/7 wired them into the trained model 2026-08-20 — the pipeline
+is at full 15/15 Biswas et al. predictor parity, this notebook contributing 9 of the
+15. Land cover and fire points are also produced by this notebook, but as supporting
 datasets (forest-masking input and response variable respectively), not as Table 3
 predictors in either study. Burned area was never actually a Table 3 predictor gap —
 it's a Table 2 dataset in their paper used elsewhere, not one of the 15 — though this

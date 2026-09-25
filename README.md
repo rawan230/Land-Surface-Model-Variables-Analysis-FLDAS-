@@ -1,5 +1,19 @@
 # 🌬️🌧️🔥 Land Surface Model Variables Analysis — India (FLDAS)
 
+<!-- AUDIT-UPDATE-2026-09-25 -->
+> ### Audit update (2026-09-25)
+> This repository's step was recalculated independently from the raw data in a full end-to-end audit.
+> **Corrected results, reproduction checks and audit code: [`AUDIT_2026-09-25.md`](AUDIT_2026-09-25.md)** and `audit_2026-09-25/`.
+> Earlier text below is kept for the record (it also remains in the git history). Statements superseded by the audit:
+>
+> - **'Specific humidity is only a national scalar'**: incorrect. Specific humidity is a per-pixel predictor (v1 and v2); derived RH is an additional predictor.
+> - **'Air-temperature trend is multiple-testing noise'**: an artefact of MK on seasonal data. Seasonal Kendall gives 9,988 of 29,056 pixels FDR-significant.
+> - **Grid spacing** is 1/120° (≈0.93 km), not 0.01°.
+> - **Anomaly-mean features** (climate, LST, NDVI) are degenerate: with a 2001–2020 baseline they equal the residue of the 26 out-of-baseline months. v2 replaces them with climatological levels.
+> - **22 land-cover fractions** come from the 2020 map, inside the label window. v2 uses the 2001 map; the measured leakage effect is small.
+<!-- AUDIT-UPDATE-2026-09-25 -->
+
+
 **Notebook:** [`Land Surface Model Variables Analysis.ipynb`](Land%20Surface%20Model%20Variables%20Analysis.ipynb)
 
 ## Step 4: Climatic Variables + Land Cover — Biswas et al.-Aligned Feature Set — India (2000–2022)

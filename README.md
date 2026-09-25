@@ -201,7 +201,41 @@ Requires a free NASA Earthdata Login with the "NASA GESDISC DATA ARCHIVE"
 application authorized, and a `_netrc` file with those credentials (see the
 script's docstring for exact setup).
 
-## Results (2000-11-01 → 2022-12-15, 266 months)
+## Results — v2 (notebook rerun 2026-09-25)
+
+The notebook was corrected and re-executed end-to-end over 2000-11-01 → 2022-12-15
+(266 months) on 28,813 FLDAS land pixels (28,759 for the LSM-only variables). Every count
+below matches the independent audit recalculation exactly
+(`audit_2026-09-25/results/R2_report.json`). The full table is `FLDAS_Outputs/FLDAS_trend_summary.csv`.
+
+**What changed:**
+- **Features.** The model features are now the 2001–2020 **climatological levels**
+  (`*_level_on_NDVI_grid.tif`) and the **Seasonal Kendall τ** (`SeasonalKendall_tau_*_on_NDVI_grid.tif`).
+  The anomaly means are degenerate: their identity error is ≤ 4×10⁻⁵, and the level's spatial
+  SD is 40–431× theirs. They are no longer exported.
+- **Trend test.** Seasonal Kendall (Hirsch et al. 1982) + BH-FDR (α = 0.05) + seasonal Sen
+  slope replaces Mann–Kendall on the seasonal monthly series.
+- **Land cover.** The 22 land-cover fractions come from the **2001** map
+  (`LandCover_22Class_Fractions_2001.tif`), before the label window. They previously came from 2020.
+- **Archive.** The v1 outputs are in `FLDAS_Outputs/_superseded_v1/` (a short name, kept
+  under Windows' 260-character path limit).
+
+| Variable | National mean level (2001–2020) | SK τ mean | FDR-significant ↑ | FDR-significant ↓ | Total FDR-significant | v1 raw MK p<0.05 (invalid) |
+|---|---:|---:|---:|---:|---:|---:|
+| Air temperature (K) | 296.11 | −0.040 | 2,368 | 7,620 | **9,988** | 636 |
+| Specific humidity (kg/kg) | 0.01052 | +0.200 | 26,373 | 0 | **26,373** | 11,868 |
+| Relative humidity (%) | 52.33 | +0.171 | 21,398 | 279 | **21,677** | 13,413 |
+| Wind speed (m/s) | 4.478 | −0.062 | 2,756 | 12,566 | **15,322** | 3,728 |
+| Precipitation (mm/month) | 94.35 | +0.073 | 6,617 | 770 | **7,387** | 2,754 |
+| Net longwave radiation (W/m²) | −84.96 | +0.182 | 23,808 | 23 | **23,831** | 10,197 |
+| Soil moisture (kg/m², column) | 26.37 | +0.164 | 21,390 | 210 | **21,600** | 11,615 |
+
+Reading: India has become significantly more humid, with wetter soils and less negative net
+longwave radiation, over most of the grid, while wind speed has fallen. Air temperature
+shows a real, mostly cooling trend at 9,988 pixels. The earlier statement that its trend was
+multiple-testing noise was an artefact of applying Mann–Kendall to seasonal data.
+
+## Results — historical v1 (2000-11-01 → 2022-12-15, 266 months; superseded, kept for the record)
 
 - **Grid**: FLDAS cropped to India bounds is 335 × 315 px at 0.1° resolution; the India boundary mask keeps 29,056 of 105,525 pixels (27.5%).
 - **All 266 months** streamed and cropped in **40.3 seconds**.
